@@ -10,6 +10,17 @@ from pokemongo_bot.inventory import Pokemons
 class TransferPokemon(BaseTask):
     SUPPORTED_TASK_API_VERSION = 1
 
+    def _count_evolves(self, pokemon_id, pokemon_count):
+        count = 0
+        
+        candies_per_evolve = inventory.Pokemons.evolution_cost_for(pokemon_id)
+        if candies_per_evolve:
+            candies_available = inventory.candies().get(pokemon_id).quantity
+            count = (pokemon_count + candies_available) / candies_per_evolve
+
+
+        return count+1
+
     def work(self):
         pokemon_groups = self._release_pokemon_get_groups()
         for pokemon_id, group in pokemon_groups.iteritems():
@@ -19,11 +30,18 @@ class TransferPokemon(BaseTask):
             if keep_best:
                 best_pokemon_ids = set()
                 order_criteria = 'none'
+
+                if keep_best_cp == 'evolve':
+                    keep_best_cp = self._count_evolves(pokemon_id, len(group))
+
                 if keep_best_cp >= 1:
                     cp_limit = keep_best_cp
                     best_cp_pokemons = sorted(group, key=lambda x: (x.cp, x.iv), reverse=True)[:cp_limit]
                     best_pokemon_ids = set(pokemon.id for pokemon in best_cp_pokemons)
                     order_criteria = 'cp'
+
+                if keep_best_iv == 'evolve':
+                    keep_best_iv = self._count_evolves(pokemon_id, len(group))
 
                 if keep_best_iv >= 1:
                     iv_limit = keep_best_iv
@@ -177,12 +195,14 @@ class TransferPokemon(BaseTask):
         if keep_best_cp or keep_best_iv:
             keep_best = True
             try:
-                keep_best_cp = int(keep_best_cp)
+                if keep_best_cp != 'evolve':
+                    keep_best_cp = int(keep_best_cp)
             except ValueError:
                 keep_best_cp = 0
 
             try:
-                keep_best_iv = int(keep_best_iv)
+                if keep_best_iv != 'evolve':
+                    keep_best_iv = int(keep_best_iv)
             except ValueError:
                 keep_best_iv = 0
 
